@@ -1,0 +1,12 @@
+lsof -i :8000
+kill -9 <PID>
+cd /workspaces/COG/COG
+php -S 0.0.0.0:8000 -t .
+sudo fuser -k 8000/tcp && cd /workspaces/COG/COG && php -S 0.0.0.0:8000 -t .
+cd /workspaces/COG/COG
+
+sudo fuser -k 8000/tcp
+cd /workspaces/COG/COG
+php -S 0.0.0.0:8000 -t .
+
+ngrok http 8000

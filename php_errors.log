@@ -1,0 +1,4 @@
+[06-Apr-2026 07:16:27 Europe/Berlin] [ENV] .env file not found at C:\xampp\htdocs\COG/.env
+[06-Apr-2026 07:16:33 Europe/Berlin] [ENV] .env file not found at C:\xampp\htdocs\COG/.env
+[06-Apr-2026 07:17:11 Europe/Berlin] [ENV] .env file not found at C:\xampp\htdocs\COG/.env
+[06-Apr-2026 07:17:11 Europe/Berlin] DB connection error: SQLSTATE[HY000] [1045] Access denied for user 'cog_user'@'localhost' (using password: NO)

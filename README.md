@@ -1,1 +1,1 @@
-# COG_system
+# COG

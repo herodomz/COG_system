@@ -1,0 +1,172 @@
+
+
+-- COG Management System Database Migration
+-- Version: 1.0.0
+-- Date: 2026-04-03
+-- Description: Initial schema setup with tables, data, and procedures
+-- Usage: Run this script in MySQL to set up the database
+-- Note: This script is idempotent (can be run multiple times safely)
+
+-- Create database user (update password for your environment)
+CREATE USER IF NOT EXISTS 'cog_user'@'localhost' IDENTIFIED BY 'P@ssw0rd!2026';
+CREATE USER IF NOT EXISTS 'cog_user'@'127.0.0.1' IDENTIFIED BY 'P@ssw0rd!2026';
+GRANT ALL PRIVILEGES ON cog_management_system.* TO 'cog_user'@'localhost';
+GRANT ALL PRIVILEGES ON cog_management_system.* TO 'cog_user'@'127.0.0.1';
+FLUSH PRIVILEGES;
+
+-- Enable strict mode and error handling
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
+
+-- Create the database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS cog_management_system
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_general_ci;
+
+-- Switch to the database
+USE cog_management_system;
+
+-- ========================================
+-- Table: admins
+-- ========================================
+CREATE TABLE IF NOT EXISTS admins (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  full_name VARCHAR(100) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  email VARCHAR(100) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Insert default admin user (update password hash in production)
+INSERT INTO admins (id, username, full_name, password, email, created_at)
+VALUES (1, 'admin', 'Administrator', '$2y$10$YourHashedPasswordHere', 'admin@olshco.edu', NOW())
+ON DUPLICATE KEY UPDATE username=VALUES(username);
+
+-- ========================================
+-- Table: users
+-- ========================================
+CREATE TABLE IF NOT EXISTS users (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_id VARCHAR(20) NOT NULL UNIQUE,
+  full_name VARCHAR(100) NOT NULL,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  course VARCHAR(50) DEFAULT NULL,
+  year_level INT(11) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ========================================
+-- Table: students
+-- ========================================
+CREATE TABLE IF NOT EXISTS students (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  firstname VARCHAR(50) DEFAULT NULL,
+  lastname VARCHAR(50) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ========================================
+-- Table: cog_requests
+-- ========================================
+CREATE TABLE IF NOT EXISTS cog_requests (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  user_id INT(11) NOT NULL,
+  request_number VARCHAR(50) NOT NULL UNIQUE,
+  purpose TEXT DEFAULT NULL,
+  copies INT(11) DEFAULT 1,
+  amount DECIMAL(10,2) DEFAULT NULL,
+  status ENUM('pending','processing','ready','released') DEFAULT 'pending',
+  payment_status ENUM('unpaid','paid') DEFAULT 'unpaid',
+  payment_date DATETIME DEFAULT NULL,
+  admin_notes TEXT DEFAULT NULL,
+  request_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY user_id (user_id),
+  CONSTRAINT cog_requests_ibfk_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ========================================
+-- Table: notifications
+-- ========================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  user_id INT(11) NOT NULL,
+  request_id INT(11) DEFAULT NULL,
+  message TEXT DEFAULT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY user_id (user_id),
+  KEY request_id (request_id),
+  CONSTRAINT notifications_ibfk_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT notifications_ibfk_2 FOREIGN KEY (request_id) REFERENCES cog_requests(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ========================================
+-- Table: settings
+-- ========================================
+CREATE TABLE IF NOT EXISTS settings (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  setting_key VARCHAR(100) NOT NULL UNIQUE,
+  setting_value TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Insert default settings
+INSERT INTO settings (id, setting_key, setting_value, created_at, updated_at) VALUES
+(1, 'system_name', 'COG Management System', NOW(), NOW()),
+(2, 'school_name', 'OLSHCO', NOW(), NOW()),
+(3, 'price_per_copy', '50.00', NOW(), NOW()),
+(4, 'contact_email', 'admin@olshco.edu', NOW(), NOW()),
+(5, 'contact_phone', '', NOW(), NOW()),
+(6, 'address', '', NOW(), NOW())
+ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key);
+
+-- ========================================
+-- Table: request_status_history (new feature)
+-- ========================================
+CREATE TABLE IF NOT EXISTS request_status_history (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  request_id INT(11) NOT NULL,
+  old_status ENUM('pending','processing','ready','released') DEFAULT NULL,
+  new_status ENUM('pending','processing','ready','released') DEFAULT NULL,
+  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  changed_by INT(11) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY request_id (request_id),
+  CONSTRAINT fk_request FOREIGN KEY (request_id) REFERENCES cog_requests(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ========================================
+-- Stored Procedures
+-- ========================================
+DROP PROCEDURE IF EXISTS addStudent;
+DELIMITER $$
+CREATE PROCEDURE addStudent (
+    IN s_id INT,
+    IN s_fname VARCHAR(50),
+    IN s_lname VARCHAR(50)
+)
+BEGIN
+    INSERT INTO students (id, firstname, lastname)
+    VALUES (s_id, s_fname, s_lname);
+END$$
+DELIMITER ;
+
+-- ========================================
+-- Migration Complete
+-- ========================================
+COMMIT;
+SET AUTOCOMMIT = 1;
+
+-- Success message
+SELECT 'Database migration completed successfully!' AS status;
